@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scanner Vision-FI Suzuki GZ-150</title>
+
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#0d9488">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Vision-FI">
+    <link rel="apple-touch-icon" href="icon-192.png">
+    <style>
+        body {
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+            background-color: #0f172a;
+            color: #f8fafc;
+            text-align: center;
+            padding: 20px;
+            margin: 0;
+        }
+        .contenedor {
+            max-width: 650px;
+            margin: 0 auto;
+            background-color: #1e293b;
+            padding: 30px;
+            border-radius: 16px;
+            border: 2px solid #0d9488;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+        }
+        h1 { color: #38bdf8; font-size: 26px; margin-bottom: 5px; font-weight: 700; }
+        h2 { color: #0d9488; font-size: 14px; margin-top: 0; margin-bottom: 25px; text-transform: uppercase; letter-spacing: 1px; }
+	h3 { color: #E6F0EF; font-size: 10px; margin-top: 0; margin-bottom: 25px; text-transform: capitalize; letter-spacing: 1px; text-align: right; }
+        
+        .zona-video {
+            position: relative;
+            margin-bottom: 20px;
+            display: inline-block;
+        }
+        video { display: none; }
+        canvas {
+            border: 4px solid #334155;
+            border-radius: 12px;
+            background-color: #000;
+            max-width: 100%;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.6);
+        }
+        
+        .consola-estado {
+            background-color: #020617;
+            border-left: 5px solid #38bdf8;
+            padding: 12px;
+            border-radius: 6px;
+            text-align: left;
+            margin-bottom: 20px;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 13px;
+        }
+        .consola-linea { margin: 4px 0; color: #94a3b8; }
+        .resaltado { color: #38bdf8; font-weight: bold; }
+        .exito { color: #4ade80; font-weight: bold; }
+
+        /* Tarjeta de Diagnóstico Avanzada */
+        .tarjeta-diagnostico {
+            background-color: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 12px;
+            padding: 20px;
+            text-align: left;
+            margin-top: 25px;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.2);
+        }
+        .codigo-titulo {
+            font-size: 24px;
+            color: #ef4444;
+            font-weight: 800;
+            margin-top: 0;
+            margin-bottom: 5px;
+            border-bottom: 2px solid #334155;
+            padding-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .componente-nombre {
+            font-size: 18px;
+            color: #fbbf24;
+            font-weight: 600;
+            margin-bottom: 15px;
+        }
+        .seccion-inspeccion {
+            margin-top: 15px;
+        }
+        .titulo-secuencia {
+            font-size: 14px;
+            color: #38bdf8;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 6px;
+            font-weight: bold;
+        }
+        .lista-pasos {
+            margin: 0 0 15px 0;
+            padding-left: 20px;
+            color: #cbd5e1;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+        .lista-pasos li {
+            margin-bottom: 4px;
+        }
+
+        .controles {
+            margin-bottom: 15px;
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+        }
+        select, button {
+            background-color: #334155;
+            color: white;
+            border: 1px solid #475569;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 14px;
+            cursor: pointer;
+        }
+        select:focus, button:hover {
+            background-color: #475569;
+            outline: none;
+        }
+    </style>
+</head>
+<body>
+
+<div class="contenedor">
+    <h1>SCANNER VISION-FI_V2</h1>
+    <h2>Suzuki GZ-150 · Sistema DCP-FI</h2>
+
+    <div class="controles">
+        <select id="selectorCamara">
+            <option value="">Cargando cámaras...</option>
+        </select>
+        <button id="btnReiniciar">Reiniciar Lectura</button>
+    </div>
+
+    <div class="zona-video">
+        <video id="video" autoplay playsinline></video>
+        <canvas id="canvasVisualizacion"></canvas>
+    </div>
+
+    <div class="consola-estado">
+        <div class="consola-linea">Filtro ROI: <span id="logCanal" class="resaltado">Procesando canal ROJO...</span></div>
+        <div class="consola-linea">Etapa Actual: <span id="logEtapa" class="resaltado">LEYENDO_DECENAS</span></div>
+        <div class="consola-linea">Estado LED: <span id="logLed" class="resaltado">APAGADO</span></div>
+        <div class="consola-linea">Conteo Parcial: Decenas: <span id="logDecenas" class="resaltado">0</span> | Unidades: <span id="logUnidades" class="resaltado">0</span></div>
+    </div>
+
+    <div class="tarjeta-diagnostico" id="bloqueDiagnostico">
+        <div class="codigo-titulo" id="cajaResultado">CÓDIGO FI DETECTADO: --</div>
+        <div class="componente-nombre" id="cajaDescripcion">En espera del patrón de destellos de la ECU...</div>
+        <div id="cajaInspeccion"></div>
+    </div>
+
+	<h3>by YesidRodriguezLozano</h3>
+</div>
+
+<script>
+    // --- DICCIONARIO OFICIAL DE CÓDIGOS DTC Y SECUENCIAS DE INSPECCIÓN ---
+    const diccionarioDTC = {
+        12: {
+            componente: "Sensor de Posición del Cigüeñal (CKPS - Crank Shaft Position Sensor)",
+            secuencia1: [
+                "Gire el interruptor de encendido a 'OFF'.",
+                "Retire el cojín del asiento / cajón porta-casco.",
+                "Verifique si hay flojedad o mal contacto en el conector del CKPS.",
+                "Si la conexión está bien, mida la resistencia del CKPS entre los terminales (G y L). Valor normal: 150 - 230 Ω (usando Pocket Tester 09900-25008).",
+                "¿La resistencia está dentro del rango normal? Sí -> Proceder a la Secuencia 2. No -> Reemplazar el sensor CKPS."
+            ],
+            secuencia2: [
+                "Verifique si hay flojedad o mal contacto en el conector del terminal de la ECU.",
+                "Si no encuentra anomalías en las conexiones o el cableado, reemplace la ECU por una nueva.",
+                "Borre el código de falla de la memoria utilizando la herramienta de diagnóstico después de realizar la reparación."
+            ]
+        },
+        13: {
+            componente: "Sensor de Presión de Aire de Admisión (IAPS - Intake Air Pressure Sensor)",
+            secuencia1: [
+                "Gire el interruptor de encendido a 'OFF' y retire el sillín.",
+                "Revise la firmeza y limpieza en el conector del cuerpo de aceleración (MAQS).",
+                "Si el conector está firme, verifique el voltaje de salida del sensor IAPS. Valor normal: Aprox. 2.0 - 3.0 V.",
+                "Si los valores son incorrectos, verifique si hay obstrucción o grietas en el conducto de vacío del cuerpo de aceleración."
+            ],
+            secuencia2: [
+                "Revise la continuidad del cableado hacia la ECU (Terminal PM y terminales de alimentación).",
+                "Compruebe si hay falsos contactos en la ECU. Si persiste el fallo con el sensor en buen estado, sustituya la ECU."
+            ]
+        },
+        14: {
+            componente: "Sensor de Posición del Acelerador (TPS - Throttle Position Sensor)",
+            secuencia1: [
+                "Coloque el interruptor de encendido en 'OFF'.",
+                "Compruebe que el cable de aceleración se mueva libremente y tenga la holgura correcta.",
+                "Revise la firmeza del acople eléctrico en el bloque MAQS.",
+                "Mida la resistencia o voltaje variable del terminal de señal del TPS (VTA) al abrir y cerrar la mariposa paulatinamente. El incremento debe ser lineal sin saltos bruscos."
+            ],
+            secuencia2: [
+                "Verifique el conector de la ECU en busca de terminales sulfatados o sueltos.",
+                "Si el cableado eléctrico no presenta cortos ni cortes y el sensor sigue fuera de parámetros, reemplace el cuerpo de inyección o la ECU."
+            ]
+        },
+        15: {
+            componente: "Sensor de Temperatura del Motor (ETS - Engine Temperature Sensor)",
+            secuencia1: [
+                "Gire el interruptor de encendido a 'OFF' y retire el sillín.",
+                "Revise si hay flojedad o mal contacto en el conector directo del sensor ETS.",
+                "Desconecte el sensor ETS y mida su resistencia interna con un multímetro. El valor debe disminuir proporcionalmente a medida que la temperatura del motor se eleva.",
+                "¿Resistencia fuera de rango o circuito abierto? -> Reemplace el sensor ETS."
+            ],
+            secuencia2: [
+                "Verifique la continuidad de las líneas eléctricas desde el sensor hasta el pin correspondientes en la ECU (Pin THE / Pin E2).",
+                "Si el arnés está perfecto y el sensor es nuevo pero persiste la falla, reemplace la ECU."
+            ]
+        },
+        21: {
+            componente: "Sensor de Temperatura del Aire de Admisión (IATS - Intake Air Temperature Sensor)",
+            secuencia1: [
+                "Interruptor de encendido en 'OFF'. Retire el asiento.",
+                "Inspeccione visualmente el arnés del MAQS asegurándose de que no existan cables pelados o sueltos.",
+                "Mida la resistencia del termistor IATS (Terminal THA). Asegúrese de que responda a los cambios térmicos ambientales."
+            ],
+            secuencia2: [
+                "Compruebe el aislamiento a masa de las líneas del sensor.",
+                "Revise el conector de la ECU. De encontrarse en perfecto estado el cableado, proceda a sustituir la ECU."
+            ]
+        },
+        23: {
+            componente: "Sensor de Volcamiento / Inclinación (TOS - Tip-Over Sensor)",
+            secuencia1: [
+                "Gire el interruptor de encendido a 'OFF'.",
+                "Retire la tapa o placa frontal inclinada de la motocicleta.",
+                "Revise el conector del TOS buscando sulfatación o terminales flojos.",
+                "Mida el voltaje de entrada en el TOS: Debe marcar entre 4.5 - 5.5 V (Cable R - Tierra).",
+                "Verifique el voltaje de salida del sensor en dos posiciones: Posición vertical (normal): 0.4 - 1.4 V. Posición inclinado (volcado >45°): 3.7 - 4.4 V (Entre cables Br/W y B/Br).",
+                "¿Los voltajes están en el rango correcto? Sí -> Ir a secuencia 2. No -> Reemplazar el sensor TOS."
+            ],
+            secuencia2: [
+                "Revise la integridad del pin central de diagnóstico en el enchufe de la ECU.",
+                "Inspeccione el arnés completo. Si no hay cortos ni cables sueltos, el daño radica en la ECU. Reemplácela."
+            ]
+        },
+        24: {
+            componente: "Bobina de Encendido (Ignition Coil)",
+            secuencia1: [
+                "Gire el interruptor a 'OFF' y remueva el asiento de la moto.",
+                "Examine las conexiones físicas de alta y baja tensión de la bobina de encendido. Asegúrese de que no estén flojas o con corrosión.",
+                "Mida la resistencia del devanado primario y secundario de la bobina de encendido con el Pocket Tester.",
+                "Compruebe que el capuchón de la bujía y la bujía misma no estén en cortocircuito o mal calibrados."
+            ],
+            secuencia2: [
+                "Verifique el conector de la ECU y el cable de control de activación (Pin IG) buscando interrupciones en la línea.",
+                "Si el cableado y la bobina están en perfecto estado, reemplace la ECU.",
+                "Use la herramienta para borrar el historial de fallas una vez solventado el inconveniente."
+            ]
+        },
+        32: {
+            componente: "Bomba de Inyección de Descarga / Combustible (DCP - Discharge Pump)",
+            secuencia1: [
+                "Gire el interruptor de encendido a 'OFF'.",
+                "Retire el sillín y localice el conector de la bomba DCP.",
+                "Revise que el enchufe no esté sueltos, sucio o sulfatado.",
+                "Desconecte el conector de la DCP y mida su resistencia eléctrica directa. Valor normal requerido: Aprox. 1.9 Ω (Entre los cables R/W y W/L).",
+                "¿La resistencia medida está en el rango normal? Sí -> Proceder a la Secuencia 2. No -> Reemplazar la bomba DCP."
+            ],
+            secuencia2: [
+                "Examine minuciosamente el cableado principal del sistema de combustible y los pines de acoplamiento de la ECU (Pines DCP+ y DCP-).",
+                "Si las líneas no muestran continuidad rota ni cortos, proceda a sustituir la ECU.",
+                "Borre los códigos de error almacenados con el escáner al terminar."
+            ]
+        },
+        40: {
+            componente: "Válvula de Control de Marcha Mínima / Ralentí (ISCV - Idle Speed Control Valve)",
+            secuencia1: [
+                "Gire el interruptor de encendido a 'OFF'. Retire el asiento de la motocicleta.",
+                "Revise con cuidado el conector de la ISCV en búsqueda de pines desalineados o sueltos.",
+                "Desconecte el enchufe de la ISCV y mida su resistencia eléctrica. Valor normal requerido: Entre 31 - 39 Ω (Entre terminales Y/R y O/W).",
+                "¿El resultado es correcto? Sí -> Proceder a la Secuencia 2. No -> Reemplazar la unidad de la válvula ISCV."
+            ],
+            secuencia2: [
+                "Inspeccione el estado general del arnés eléctrico hacia la ECU y compruebe que no esté aterrizado a masa.",
+                "Verifique falsos contactos en la ECU (Pin ISCV). De estar todo en orden, reemplace la ECU.",
+                "Limpie el historial de códigos acumulados tras el ensamble definitivo."
+            ]
+        },
+        44: {
+            componente: "Sensor de Oxígeno / Calentador del Sensor (Oxygen Sensor / Heater)",
+            secuencia1: [
+                "Gire el interruptor a 'OFF'. Localice el sensor en el tubo de escape de la moto.",
+                "Revise el acople eléctrico del sensor buscando depósitos de hollín, humedad o cables derretidos por calor excesivo.",
+                "Mida la resistencia del circuito interno del calentador del sensor de oxígeno (Terminal OXH).",
+                "Compruebe si el cuerpo del sensor presenta fisuras físicas o contaminación extrema por aceite."
+            ],
+            secuencia2: [
+                "Mida la continuidad de las líneas desde el conector del escape hasta los terminales de control de la ECU (Pin OX y Pin OXH).",
+                "Si la línea eléctrica está intacta y el sensor fue cambiado, pero persiste el DTC, sustituya la ECU."
+            ]
+        }
+    };
+
+    // --- LOGICA DE PROCESAMIENTO DE VIDEO Y CAMARA (VISION-FI) ---
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvasVisualizacion');
+    const ctx = canvas.getContext('2d');
+    
+    const logCanal = document.getElementById('logCanal');
+    const logEtapa = document.getElementById('logEtapa');
+    const logLed = document.getElementById('logLed');
+    const logDecenas = document.getElementById('logDecenas');
+    const logUnidades = document.getElementById('logUnidades');
+    
+    const cajaResultado = document.getElementById('cajaResultado');
+    const cajaDescripcion = document.getElementById('cajaDescripcion');
+    const cajaInspeccion = document.getElementById('cajaInspeccion');
+    const btnReiniciar = document.getElementById('btnReiniciar');
+    const selectorCamara = document.getElementById('selectorCamara');
+
+    let flujoActual = null;
+    let umbralBrillo = 150; 
+    let ledEncendidoAnterior = false;
+    let tiempoUltimoCambio = performance.now();
+
+    // Estados de la máquina: LEYENDO_DECENAS | LEYENDO_UNIDADES
+    let etapaLectura = "LEYENDO_DECENAS"; 
+    let contadorDecenas = 0;
+    let contadorUnidades = 0;
+
+    async function inicializarCamaras() {
+        try {
+            const dispositivos = await navigator.mediaDevices.enumerateDevices();
+            const dispositivosVideo = dispositivos.filter(d => d.kind === 'videoinput');
+            
+            selectorCamara.innerHTML = "";
+            if(dispositivosVideo.length === 0) {
+                selectorCamara.innerHTML = '<option>No se hallaron cámaras</option>';
+                return;
+            }
+
+            dispositivosVideo.forEach((disp, indice) => {
+                const opcion = document.createElement('option');
+                opcion.value = disp.deviceId;
+                opcion.text = disp.label || `Cámara ${indice + 1}`;
+                if(disp.label.toLowerCase().includes('back') || disp.label.toLowerCase().includes('trasera')) {
+                    opcion.selected = true;
+                }
+                selectorCamara.appendChild(opcion);
+            });
+
+            iniciarCamara(selectorCamara.value);
+        } catch (e) {
+            cajaDescripcion.innerText = "Error accediendo a periféricos de video: " + e.message;
+        }
+    }
+
+    async function iniciarCamara(deviceId) {
+        if (flujoActual) {
+            flujoActual.getTracks().forEach(track => track.stop());
+        }
+
+        const restricciones = {
+            video: {
+                deviceId: deviceId ? { exact: deviceId } : undefined,
+                facingMode: deviceId ? undefined : { ideal: "environment" }, 
+                width: { ideal: 640 },
+                height: { ideal: 480 }
+            }
+        };
+
+        try {
+            flujoActual = await navigator.mediaDevices.getUserMedia(restricciones);
+            video.srcObject = flujoActual;
+            video.setAttribute('playsinline', true);
+            await video.play();
+            
+            canvas.width = 400;
+            canvas.height = 300;
+        } catch (err) {
+            cajaDescripcion.innerText = "Error al iniciar transmisión de cámara: " + err.message;
+        }
+    }
+
+    selectorCamara.addEventListener('change', () => {
+        iniciarCamara(selectorCamara.value);
+        reiniciarMaquinaEstados();
+    });
+
+    function reiniciarMaquinaEstados() {
+        etapaLectura = "LEYENDO_DECENAS";
+        contadorDecenas = 0;
+        contadorUnidades = 0;
+        ledEncendidoAnterior = false;
+        tiempoUltimoCambio = performance.now();
+        
+        logEtapa.innerText = "LEYENDO_DECENAS";
+        logDecenas.innerText = "0";
+        logUnidades.innerText = "0";
+        logLed.innerText = "APAGADO";
+        
+        cajaResultado.innerText = "CÓDIGO FI DETECTADO: --";
+        cajaResultado.style.color = "#ef4444";
+        cajaDescripcion.innerText = "En espera del patrón de destellos de la ECU...";
+        cajaInspeccion.innerHTML = "";
+    }
+
+    btnReiniciar.addEventListener('click', reiniciarMaquinaEstados);
+
+    function mostrarDiagnosticoOficial(codigo) {
+        const info = diccionarioDTC[codigo];
+        if (info) {
+            cajaResultado.innerText = `CÓDIGO FI DETECTADO: C${codigo}`;
+            cajaResultado.style.color = "#4ade80"; 
+            cajaDescripcion.innerText = info.componente;
+
+            let htmlInspeccion = `
+                <div class="seccion-inspeccion">
+                    <div class="titulo-secuencia">Secuencia de Inspección 1 (Sequence 1)</div>
+                    <ul class="lista-pasos">
+                        ${info.secuencia1.map(paso => `<li>${paso}</li>`).join('')}
+                    </ul>
+                </div>
+                <div class="seccion-inspeccion">
+                    <div class="titulo-secuencia">Secuencia de Inspección 2 (Sequence 2)</div>
+                    <ul class="lista-pasos">
+                        ${info.secuencia2.map(paso => `<li>${paso}</li>`).join('')}
+                    </ul>
+                </div>
+            `;
+            cajaInspeccion.innerHTML = htmlInspeccion;
+        } else {
+            cajaResultado.innerText = `CÓDIGO FI DETECTADO: ${codigo}`;
+            cajaResultado.style.color = "#fbbf24";
+            cajaDescripcion.innerText = "Código desconocido o lectura fuera de los parámetros del manual.";
+            cajaInspeccion.innerHTML = "<p class='lista-pasos'>Verifique la estabilidad de la cámara, el encuadre sobre el testigo FI de la instrumentación y repita el procedimiento.</p>";
+        }
+    }
+
+    // --- BUCLE PRINCIPAL DE PROCESAMIENTO (COMPUTER VISION) ---
+    video.addEventListener('play', () => {
+        function procesarFotograma() {
+            if (video.paused || video.ended) return;
+            
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            
+            const anchoROI = 60;
+            const altoROI = 60;
+            const xROI = (canvas.width / 2) - (anchoROI / 2);
+            const yROI = (canvas.height / 2) - (altoROI / 2);
+            
+            ctx.strokeStyle = "#0d9488";
+            ctx.lineWidth = 3;
+            ctx.strokeRect(xROI, yROI, anchoROI, altoROI);
+            
+            const imgData = ctx.getImageData(xROI, yROI, anchoROI, altoROI);
+            const pixeles = imgData.data;
+            
+            let sumaRojo = 0;
+            let totalPixeles = pixeles.length / 4;
+            
+            for (let i = 0; i < pixeles.length; i += 4) {
+                let r = pixeles[i];
+                let g = pixeles[i+1];
+                let b = pixeles[i+2];
+                if (r > g * 1.4 && r > b * 1.4) {
+                    sumaRojo += r;
+                }
+            }
+            
+            let brilloRojoPromedio = sumaRojo / totalPixeles;
+            let ledEncendidoActual = brilloRojoPromedio > umbralBrillo;
+            
+            ctx.fillStyle = ledEncendidoActual ? "red" : "#334155";
+            ctx.beginPath();
+            ctx.arc(30, 30, 15, 0, 2 * Math.PI);
+            ctx.fill();
+            ctx.fillStyle = "white";
+            ctx.font = "11px sans-serif";
+            ctx.fillText("LED", 18, 33);
+
+            logLed.innerText = ledEncendidoActual ? "ENCENDIDO" : "APAGADO";
+            logLed.style.color = ledEncendidoActual ? "#ef4444" : "#94a3b8";
+
+            let tiempoActual = performance.now();
+            let duracionEstado = (tiempoActual - tiempoUltimoCambio) / 1000; 
+
+            // --- DETECCIÓN DE FLANCOS Y ANÁLISIS DE TIEMPOS EXÁCTOS ---
+            if (ledEncendidoActual !== ledEncendidoAnterior) {
+                
+                if (!ledEncendidoActual) { 
+                    // El LED se apaga (Fin de un pulso de 0.3s): Contamos el pulso activo
+                    if (etapaLectura === "LEYENDO_DECENAS") {
+                        contadorDecenas++;
+                        logDecenas.innerText = contadorDecenas;
+                    } else if (etapaLectura === "LEYENDO_UNIDADES") {
+                        contadorUnidades++;
+                        logUnidades.innerText = contadorUnidades;
+                    }
+                } else {
+                    // El LED se enciende: Evaluamos la duración del estado APAGADO anterior
+                    // Rango de tolerancia alrededor de 1.0s (por ejemplo, entre 0.6s y 1.8s) indica cambio de dígito
+                    if (etapaLectura === "LEYENDO_DECENAS" && duracionEstado >= 0.6 && duracionEstado <= 1.8) {
+                        etapaLectura = "LEYENDO_UNIDADES";
+                        logEtapa.innerText = "LEYENDO_UNIDADES";
+                    }
+                }
+                
+                tiempoUltimoCambio = tiempoActual;
+                ledEncendidoAnterior = ledEncendidoActual;
+            }
+
+            // --- DECODIFICACIÓN AUTOMÁTICA POR TIEMPO DE INACTIVIDAD APAGADO ---
+            // Un lapso de LED apagado por más de 3.0s consolida el código de error.
+            if (!ledEncendidoActual && duracionEstado >= 3.0) {
+                if (contadorDecenas > 0 || contadorUnidades > 0) {
+                    let codigoFinal = (contadorDecenas * 10) + contadorUnidades;
+                    
+                    // Mostrar resultados en la interfaz
+                    mostrarDiagnosticoOficial(codigoFinal);
+                    
+                    // Reiniciar parámetros y volver al estado inicial para nuevos códigos
+                    contadorDecenas = 0;
+                    contadorUnidades = 0;
+                    etapaLectura = "LEYENDO_DECENAS";
+                    logEtapa.innerText = "LEYENDO_DECENAS (Esperando nuevo ciclo)";
+                }
+            }
+
+            requestAnimationFrame(procesarFotograma);
+        }
+        procesarFotograma();
+    });
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', inicializarCamaras);
+    } else {
+        inicializarCamaras();
+    }
+
+    // --- REGISTRO DEL SERVICE WORKER (PWA) ---
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('./sw.js')
+                .then((registro) => {
+                    console.log('✅ PWA lista. Service Worker registrado:', registro.scope);
+                })
+                .catch((error) => {
+                    console.log('⚠️ Error registrando Service Worker:', error);
+                });
+        });
+    }
+</script>
+
+</body>
+</html>
