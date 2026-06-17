@@ -1,6 +1,6 @@
 // Service Worker para Scanner Vision-FI PWA
 // Versión del cache - cambiar este número cuando se actualice la app
-const CACHE_NAME = 'scanner-vision-fi-v1';
+const CACHE_NAME = 'scanner-vision-fi-v2';
 
 // Archivos que se guardan en el celular para uso sin internet
 const ARCHIVOS_PARA_CACHE = [
