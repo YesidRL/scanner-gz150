@@ -32,7 +32,7 @@
         }
         h1 { color: #38bdf8; font-size: 26px; margin-bottom: 5px; font-weight: 700; }
         h2 { color: #0d9488; font-size: 14px; margin-top: 0; margin-bottom: 25px; text-transform: uppercase; letter-spacing: 1px; }
-	h3 { color: #E6F0EF; font-size: 10px; margin-top: 0; margin-bottom: 25px; text-transform: capitalize; letter-spacing: 1px; text-align: right; }
+		h3 { color: #E6F0EF; font-size: 10px; margin-top: 0; margin-bottom: 25px; text-transform: capitalize; letter-spacing: 1px; text-align: right; }
         
         .zona-video {
             position: relative;
@@ -61,6 +61,54 @@
         .consola-linea { margin: 4px 0; color: #94a3b8; }
         .resaltado { color: #38bdf8; font-weight: bold; }
         .exito { color: #4ade80; font-weight: bold; }
+
+        /* Sección de Selección Manual por Botones */
+        .seccion-manual {
+            margin-bottom: 25px;
+            background-color: #0f172a;
+            padding: 15px;
+            border-radius: 10px;
+            border: 1px solid #334155;
+        }
+        .manual-titulo {
+            font-size: 13px;
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+        .grid-botones {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 8px;
+        }
+        @media (max-width: 480px) {
+            .grid-botones {
+                grid-template-columns: repeat(4, 1fr);
+            }
+        }
+        .btn-codigo {
+            background-color: #1e293b;
+            color: #38bdf8;
+            border: 1px solid #38bdf8;
+            padding: 10px 5px;
+            font-size: 15px;
+            font-weight: bold;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .btn-codigo:hover {
+            background-color: #38bdf8;
+            color: #0f172a;
+        }
+        .btn-codigo.activo {
+            background-color: #4ade80;
+            color: #020617;
+            border-color: #4ade80;
+            box-shadow: 0 0 10px rgba(74, 222, 128, 0.4);
+        }
 
         /* Tarjeta de Diagnóstico Avanzada */
         .tarjeta-diagnostico {
@@ -136,7 +184,7 @@
 <body>
 
 <div class="contenedor">
-    <h1>SCANNER VISION-FI_V2</h1>
+    <h1>SCANNER VISION-FI</h1>
     <h2>Suzuki GZ-150 · Sistema DCP-FI</h2>
 
     <div class="controles">
@@ -149,6 +197,12 @@
     <div class="zona-video">
         <video id="video" autoplay playsinline></video>
         <canvas id="canvasVisualizacion"></canvas>
+    </div>
+
+    <div class="seccion-manual">
+        <div class="manual-titulo">Selección Directa de Código DTC (Manual)</div>
+        <div class="grid-botones" id="contenedorBotones">
+            </div>
     </div>
 
     <div class="consola-estado">
@@ -265,6 +319,19 @@
                 "Use la herramienta para borrar el historial de fallas una vez solventado el inconveniente."
             ]
         },
+        31: {
+            componente: "Sensor de Velocidad del Vehículo (VSS - Vehicle Speed Sensor)",
+            secuencia1: [
+                "Gire el interruptor de encendido a 'OFF'.",
+                "Localice el sensor de velocidad ubicado generalmente cerca de la salida de la transmisión / piñón de ataque o rueda trasera.",
+                "Revise que el conector eléctrico no esté suelto, sucio, húmedo o sulfatado.",
+                "Mida el voltaje de alimentación del sensor con el interruptor en 'ON' y verifique que reciba señal de tierra adecuada."
+            ],
+            secuencia2: [
+                "Coloque la motocicleta sobre el parador central, conecte un multímetro en el cable de señal y gire la rueda manualmente. Verifique si el sensor genera los pulsos de voltaje intermitentes normales de forma lineal.",
+                "Revise la continuidad del arnés de cables desde el acople del sensor hasta los terminales asignados en la ECU. Si el cableado es correcto y el sensor no genera señal, reemplácelo."
+            ]
+        },
         32: {
             componente: "Bomba de Inyección de Descarga / Combustible (DCP - Discharge Pump)",
             secuencia1: [
@@ -325,9 +392,10 @@
     const cajaInspeccion = document.getElementById('cajaInspeccion');
     const btnReiniciar = document.getElementById('btnReiniciar');
     const selectorCamara = document.getElementById('selectorCamara');
+    const contenedorBotones = document.getElementById('contenedorBotones');
 
     let flujoActual = null;
-    let umbralBrillo = 150; 
+    let umbralBrillo = 210; 
     let ledEncendidoAnterior = false;
     let tiempoUltimoCambio = performance.now();
 
@@ -335,6 +403,36 @@
     let etapaLectura = "LEYENDO_DECENAS"; 
     let contadorDecenas = 0;
     let contadorUnidades = 0;
+
+    // --- GENERACIÓN E INTERACCIÓN DE LA BOTONERA MANUAL ---
+    function inicializarBotonera() {
+        contenedorBotones.innerHTML = "";
+        // Se ordenan las llaves numéricamente para mantener un orden visual limpio en el grid
+        Object.keys(diccionarioDTC).sort((a,b) => a-b).forEach(codigo => {
+            const boton = document.createElement('button');
+            boton.type = "button";
+            boton.className = "btn-codigo";
+            boton.innerText = `C${codigo}`;
+            boton.dataset.codigo = codigo;
+            
+            boton.addEventListener('click', () => {
+                // Desmarcar cualquier otro botón activo
+                document.querySelectorAll('.btn-codigo').forEach(b => b.classList.remove('activo'));
+                // Marcar el botón actual como seleccionado
+                boton.classList.add('activo');
+                // Forzar visualización inmediata de los datos
+                mostrarDiagnosticoOficial(parseInt(codigo));
+                
+                // Suspender temporalmente los contadores de cámara para que no sobreescriban
+                contadorDecenas = 0;
+                contadorUnidades = 0;
+                logDecenas.innerText = "-";
+                logUnidades.innerText = "-";
+                logEtapa.innerText = "SELECCIÓN_MANUAL";
+            });
+            contenedorBotones.appendChild(boton);
+        });
+    }
 
     async function inicializarCamaras() {
         try {
@@ -411,6 +509,9 @@
         cajaResultado.style.color = "#ef4444";
         cajaDescripcion.innerText = "En espera del patrón de destellos de la ECU...";
         cajaInspeccion.innerHTML = "";
+
+        // Limpiar selección de botones manuales
+        document.querySelectorAll('.btn-codigo').forEach(b => b.classList.remove('activo'));
     }
 
     btnReiniciar.addEventListener('click', reiniciarMaquinaEstados);
@@ -494,7 +595,7 @@
             let duracionEstado = (tiempoActual - tiempoUltimoCambio) / 1000; 
 
             // --- DETECCIÓN DE FLANCOS Y ANÁLISIS DE TIEMPOS EXÁCTOS ---
-            if (ledEncendidoActual !== ledEncendidoAnterior) {
+            if (etapaLectura !== "SELECCIÓN_MANUAL" && ledEncendidoActual !== ledEncendidoAnterior) {
                 
                 if (!ledEncendidoActual) { 
                     // El LED se apaga (Fin de un pulso de 0.3s): Contamos el pulso activo
@@ -507,7 +608,6 @@
                     }
                 } else {
                     // El LED se enciende: Evaluamos la duración del estado APAGADO anterior
-                    // Rango de tolerancia alrededor de 1.0s (por ejemplo, entre 0.6s y 1.8s) indica cambio de dígito
                     if (etapaLectura === "LEYENDO_DECENAS" && duracionEstado >= 0.6 && duracionEstado <= 1.8) {
                         etapaLectura = "LEYENDO_UNIDADES";
                         logEtapa.innerText = "LEYENDO_UNIDADES";
@@ -519,13 +619,17 @@
             }
 
             // --- DECODIFICACIÓN AUTOMÁTICA POR TIEMPO DE INACTIVIDAD APAGADO ---
-            // Un lapso de LED apagado por más de 3.0s consolida el código de error.
-            if (!ledEncendidoActual && duracionEstado >= 3.0) {
+            if (etapaLectura !== "SELECCIÓN_MANUAL" && !ledEncendidoActual && duracionEstado >= 3.0) {
                 if (contadorDecenas > 0 || contadorUnidades > 0) {
                     let codigoFinal = (contadorDecenas * 10) + contadorUnidades;
                     
                     // Mostrar resultados en la interfaz
                     mostrarDiagnosticoOficial(codigoFinal);
+                    
+                    // Sincronizar el estado visual del botón si corresponde con uno oficial
+                    document.querySelectorAll('.btn-codigo').forEach(b => b.classList.remove('activo'));
+                    const botonCorrespondiente = document.querySelector(`.btn-codigo[data-codigo='${codigoFinal}']`);
+                    if (botonCorrespondiente) botonCorrespondiente.classList.add('activo');
                     
                     // Reiniciar parámetros y volver al estado inicial para nuevos códigos
                     contadorDecenas = 0;
@@ -540,9 +644,14 @@
         procesarFotograma();
     });
 
+    // Inicializar elementos de la interfaz al cargar
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', inicializarCamaras);
+        document.addEventListener('DOMContentLoaded', () => {
+            inicializarBotonera();
+            inicializarCamaras();
+        });
     } else {
+        inicializarBotonera();
         inicializarCamaras();
     }
 
